@@ -1,0 +1,5 @@
+entry,ideal,actual
+procurement,10*1000,10.05*1200
+scrap, 0, 0.05*50
+useless production, 0, 0.05*90000
+effort,0, 20*60
