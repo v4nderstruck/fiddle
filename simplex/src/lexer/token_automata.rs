@@ -178,7 +178,7 @@ impl Tokenable for TANum {
                     return LexToken::Match;
                 }
                 self.dead = true;
-                return LexToken::NoMatch;
+                LexToken::NoMatch
             }
             _ => {
                 self.dead = true;
@@ -246,13 +246,15 @@ impl Tokenable for TAVariable {
         if self.dead {
             return LexToken::NoMatch;
         }
-        // TODO: Variable names should allow numbers after the first char
         if c.is_alphabetic() || c == '_' {
             if self.name.is_none() {
                 self.name = Some(String::new());
             }
             self.name.as_mut().unwrap().push(c);
-            return LexToken::Match;
+            LexToken::Match
+        } else if c.is_numeric() && self.name.is_some() {
+            self.name.as_mut().unwrap().push(c);
+            LexToken::Match
         } else {
             self.dead = true;
             LexToken::NoMatch
@@ -383,35 +385,35 @@ impl Tokenable for TARParan {
 mod test {
     use crate::lexer::{
         token_automata::{TAEq, TAVariable},
-        tokens::{Token, F64},
+        tokens::Token,
         Tokenable,
     };
 
-    fn tokenize(automata: Box<&mut dyn Tokenable>, s: &str) -> Option<Token> {
+    fn tokenize(automata: &mut dyn Tokenable, s: &str) -> Option<Token> {
         for c in s.chars() {
             automata.consume_char(c);
         }
-        return automata.tokenize();
+        automata.tokenize()
     }
     #[test]
     fn test_eq() {
         {
             let s = "=";
             let mut automata = TAEq::new();
-            let automata: Box<&mut dyn Tokenable> = Box::new(&mut automata);
+            let automata: &mut dyn Tokenable = &mut automata;
             assert!(Some(Token::Eq) == tokenize(automata, s));
         }
         {
             let s = "==";
             let mut automata = TAEq::new();
-            let automata: Box<&mut dyn Tokenable> = Box::new(&mut automata);
-            assert!(None == tokenize(automata, s));
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s).is_none());
         }
         {
             let s = ".=";
             let mut automata = TAEq::new();
-            let automata: Box<&mut dyn Tokenable> = Box::new(&mut automata);
-            assert!(None == tokenize(automata, s));
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s).is_none());
         }
     }
     #[test]
@@ -419,8 +421,32 @@ mod test {
         {
             let s = "x";
             let mut automata = TAVariable::new();
-            let automata: Box<&mut dyn Tokenable> = Box::new(&mut automata);
+            let automata: &mut dyn Tokenable = &mut automata;
             assert!(Some(Token::Variable(String::from(s))) == tokenize(automata, s));
+        }
+        {
+            let s = "xa_";
+            let mut automata = TAVariable::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(Some(Token::Variable(String::from(s))) == tokenize(automata, s));
+        }
+        {
+            let s = "a_1";
+            let mut automata = TAVariable::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(Some(Token::Variable(String::from(s))) == tokenize(automata, s));
+        }
+        {
+            let s = "1_a";
+            let mut automata = TAVariable::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s).is_none());
+        }
+        {
+            let s = "10";
+            let mut automata = TAVariable::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s).is_none());
         }
     }
 }
