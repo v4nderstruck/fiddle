@@ -101,10 +101,7 @@ impl Tokenable for TAFun {
             return None;
         }
 
-        match self.fun {
-            Some(ref s) => Some(Token::Fun(s.clone())),
-            None => None,
-        }
+        self.fun.as_ref().map(|s| Token::Fun(s.clone()))
     }
 }
 

@@ -1,4 +1,4 @@
-use std::io::{BufRead, Read};
+use std::io::{BufRead};
 
 use super::{
     token_automata::{TAArithOp, TAEq, TAFun, TALParan, TANum, TARParan, TAVariable},
