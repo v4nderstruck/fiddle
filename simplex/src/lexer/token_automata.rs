@@ -45,6 +45,7 @@ pub struct TAEq {
 #[derive(Debug)]
 pub struct TAFun {
     fun: Option<String>,
+    last_char: Option<char>,
     dead: bool,
 }
 
@@ -52,6 +53,7 @@ impl TAFun {
     pub fn new() -> Self {
         Self {
             fun: None,
+            last_char: None,
             dead: false,
         }
     }
@@ -62,33 +64,44 @@ impl Tokenable for TAFun {
         if self.dead {
             return LexToken::NoMatch;
         }
-        match c {
-            'a'..='z' | 'A'..='Z' => {
-                if self.fun.is_none() {
-                    self.fun = Some(String::new());
-                }
-                self.fun.as_mut().unwrap().push(c);
-                LexToken::Match
-            }
-            _ => {
-                self.dead = true;
-                LexToken::NoMatch
-            }
+        if self.last_char.is_none() && (c == 'm' || c == 's') {
+            self.last_char = Some(c);
+            return LexToken::Match;
         }
+        if self.last_char == Some('s') && c == 't' {
+            self.last_char = Some(c);
+            self.fun = Some(String::from("st"));
+            return LexToken::Match;
+        }
+        if self.last_char == Some('m') && (c == 'a' || c == 'i') {
+            self.last_char = Some(c);
+            return LexToken::Match;
+        }
+        if self.last_char == Some('a') && c == 'x' {
+            self.fun = Some(String::from("max"));
+            return LexToken::Match;
+        }
+        if self.last_char == Some('i') && c == 'n' {
+            self.fun = Some(String::from("min"));
+            return LexToken::Match;
+        }
+
+        self.dead = true;
+        LexToken::NoMatch
     }
     fn reset(&mut self) {
         self.fun = None;
         self.dead = false;
+        self.last_char = None;
     }
     fn tokenize(&self) -> Option<super::tokens::Token> {
         if self.dead {
             return None;
         }
-        match self.fun.as_ref().unwrap().as_str() {
-            "max" => Some(Token::Fun(String::from("max"))),
-            "min" => Some(Token::Fun(String::from("min"))),
-            "st" => Some(Token::Fun(String::from("st"))),
-            _ => None,
+
+        match self.fun {
+            Some(ref s) => Some(Token::Fun(s.clone())),
+            None => None,
         }
     }
 }
@@ -393,7 +406,7 @@ impl Tokenable for TARParan {
 #[cfg(test)]
 mod test {
     use crate::lexer::{
-        token_automata::{TAArithOp, TAEq, TALParan, TANum, TARParan, TAVariable},
+        token_automata::{TAArithOp, TAEq, TAFun, TALParan, TANum, TARParan, TAVariable},
         tokens::{ArithOperation, Token, F64},
         Tokenable,
     };
@@ -600,6 +613,45 @@ mod test {
             let mut automata = TANum::new();
             let automata: &mut dyn Tokenable = &mut automata;
             assert!(tokenize(automata, s) == Some(Token::Num(F64(0.4269))));
+        }
+    }
+    #[test]
+    fn test_fun() {
+        {
+            let s = "min";
+            let mut automata = TAFun::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s) == Some(Token::Fun(String::from(s))));
+        }
+        {
+            let s = "max";
+            let mut automata = TAFun::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s) == Some(Token::Fun(String::from(s))));
+        }
+        {
+            let s = "st";
+            let mut automata = TAFun::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s) == Some(Token::Fun(String::from(s))));
+        }
+        {
+            let s = "s";
+            let mut automata = TAFun::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s).is_none());
+        }
+        {
+            let s = "mis";
+            let mut automata = TAFun::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s).is_none());
+        }
+        {
+            let s = "stmin";
+            let mut automata = TAFun::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s).is_none());
         }
     }
 }
