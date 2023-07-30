@@ -26,7 +26,9 @@ pub enum Token {
     Eq,                      // =
 }
 
-pub enum LexToken {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LexState {
     Match,
     NoMatch,
+    Final,
 }

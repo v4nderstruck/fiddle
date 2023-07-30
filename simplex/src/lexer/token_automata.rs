@@ -1,7 +1,9 @@
 use super::{
-    tokens::{ArithOperation, LexToken, Token, F64},
+    tokens::{ArithOperation, LexState, Token, F64},
     Tokenable,
 };
+
+// TODO: Add support for comments
 
 #[derive(Debug)]
 pub struct TAVariable {
@@ -60,34 +62,34 @@ impl TAFun {
 }
 
 impl Tokenable for TAFun {
-    fn consume_char(&mut self, c: char) -> LexToken {
+    fn consume_char(&mut self, c: char) -> LexState {
         if self.dead {
-            return LexToken::NoMatch;
+            return LexState::NoMatch;
         }
         if self.last_char.is_none() && (c == 'm' || c == 's') {
             self.last_char = Some(c);
-            return LexToken::Match;
+            return LexState::Match;
         }
         if self.last_char == Some('s') && c == 't' {
             self.last_char = Some(c);
             self.fun = Some(String::from("st"));
-            return LexToken::Match;
+            return LexState::Final;
         }
         if self.last_char == Some('m') && (c == 'a' || c == 'i') {
             self.last_char = Some(c);
-            return LexToken::Match;
+            return LexState::Match;
         }
         if self.last_char == Some('a') && c == 'x' {
             self.fun = Some(String::from("max"));
-            return LexToken::Match;
+            return LexState::Final;
         }
         if self.last_char == Some('i') && c == 'n' {
             self.fun = Some(String::from("min"));
-            return LexToken::Match;
+            return LexState::Final;
         }
 
         self.dead = true;
-        LexToken::NoMatch
+        LexState::NoMatch
     }
     fn reset(&mut self) {
         self.fun = None;
@@ -116,20 +118,20 @@ impl TAEq {
 }
 
 impl Tokenable for TAEq {
-    fn consume_char(&mut self, c: char) -> LexToken {
+    fn consume_char(&mut self, c: char) -> LexState {
         if self.dead {
-            return LexToken::NoMatch;
+            return LexState::NoMatch;
         }
         if c == '=' {
             if self.eq {
                 self.dead = true;
-                return LexToken::NoMatch;
+                return LexState::NoMatch;
             }
             self.eq = true;
-            LexToken::Match
+            LexState::Final
         } else {
             self.dead = true;
-            LexToken::NoMatch
+            LexState::NoMatch
         }
     }
 
@@ -162,9 +164,9 @@ impl TANum {
 }
 
 impl Tokenable for TANum {
-    fn consume_char(&mut self, c: char) -> LexToken {
+    fn consume_char(&mut self, c: char) -> LexState {
         if self.dead {
-            return LexToken::NoMatch;
+            return LexState::NoMatch;
         }
         match c {
             '0'..='9' => {
@@ -180,28 +182,28 @@ impl Tokenable for TANum {
                     );
                     self.pow_dec += 1
                 }
-                LexToken::Match
+                LexState::Final
             }
             '.' => {
                 if self.int_part && self.num.is_some() {
                     self.int_part = false;
-                    LexToken::Match
+                    LexState::Final
                 } else {
                     self.dead = true;
-                    LexToken::NoMatch
+                    LexState::NoMatch
                 }
             }
             '-' => {
                 if self.num.is_none() && self.signess == 1 {
                     self.signess = -1;
-                    return LexToken::Match;
+                    return LexState::Match;
                 }
                 self.dead = true;
-                LexToken::NoMatch
+                LexState::NoMatch
             }
             _ => {
                 self.dead = true;
-                LexToken::NoMatch
+                LexState::NoMatch
             }
         }
     }
@@ -261,22 +263,22 @@ impl TARParan {
 }
 
 impl Tokenable for TAVariable {
-    fn consume_char(&mut self, c: char) -> super::tokens::LexToken {
+    fn consume_char(&mut self, c: char) -> LexState {
         if self.dead {
-            return LexToken::NoMatch;
+            return LexState::NoMatch;
         }
         if c.is_alphabetic() || c == '_' {
             if self.name.is_none() {
                 self.name = Some(String::new());
             }
             self.name.as_mut().unwrap().push(c);
-            LexToken::Match
+            LexState::Final
         } else if c.is_numeric() && self.name.is_some() {
             self.name.as_mut().unwrap().push(c);
-            LexToken::Match
+            LexState::Final
         } else {
             self.dead = true;
-            LexToken::NoMatch
+            LexState::NoMatch
         }
     }
     fn reset(&mut self) {
@@ -296,31 +298,32 @@ impl Tokenable for TAVariable {
 }
 
 impl Tokenable for TAArithOp {
-    fn consume_char(&mut self, c: char) -> LexToken {
+    fn consume_char(&mut self, c: char) -> LexState {
         if self.dead || self.op.is_some() {
             self.dead = true;
-            return LexToken::NoMatch;
+            return LexState::NoMatch;
         }
         match c {
             '+' => {
                 self.op = Some(ArithOperation::Add);
-                LexToken::Match
+                LexState::Final
             }
             '/' => {
                 self.op = Some(ArithOperation::Div);
-                LexToken::Match
+                LexState::Final
             }
             '*' => {
                 self.op = Some(ArithOperation::Mul);
-                LexToken::Match
+                LexState::Final
             }
             '-' => {
                 self.op = Some(ArithOperation::Sub);
-                LexToken::Match
+                LexState::Final
             }
             _ => {
                 self.dead = true;
-                LexToken::NoMatch
+                self.op = None;
+                LexState::NoMatch
             }
         }
     }
@@ -342,17 +345,17 @@ impl Tokenable for TAArithOp {
 }
 
 impl Tokenable for TALParan {
-    fn consume_char(&mut self, c: char) -> LexToken {
+    fn consume_char(&mut self, c: char) -> LexState {
         if self.dead || self.p.is_some() {
             self.dead = true;
-            return LexToken::NoMatch;
+            return LexState::NoMatch;
         }
         if c == '(' || c == '[' || c == '{' {
             self.p = Some(c);
-            LexToken::Match
+            LexState::Final
         } else {
             self.dead = true;
-            LexToken::NoMatch
+            LexState::NoMatch
         }
     }
 
@@ -373,17 +376,17 @@ impl Tokenable for TALParan {
 }
 
 impl Tokenable for TARParan {
-    fn consume_char(&mut self, c: char) -> LexToken {
+    fn consume_char(&mut self, c: char) -> LexState {
         if self.dead || self.p.is_some() {
             self.dead = true;
-            return LexToken::NoMatch;
+            return LexState::NoMatch;
         }
         if c == ')' || c == ']' || c == '}' {
             self.p = Some(c);
-            LexToken::Match
+            LexState::Final
         } else {
             self.dead = true;
-            LexToken::NoMatch
+            LexState::NoMatch
         }
     }
 
