@@ -31,6 +31,7 @@ pub struct TARParan {
 pub struct TANum {
     num: Option<f64>,
     int_part: bool,
+    pow_dec: i32,
     signess: i8,
     dead: bool,
 }
@@ -140,6 +141,7 @@ impl TANum {
         Self {
             num: None,
             int_part: true,
+            pow_dec: 1,
             signess: 1,
             dead: false,
         }
@@ -159,7 +161,11 @@ impl Tokenable for TANum {
                     }
                     self.num = Some(self.num.unwrap() * 10.0 + c.to_digit(10).unwrap() as f64);
                 } else {
-                    self.num = Some(self.num.unwrap() + c.to_digit(10).unwrap() as f64 / 10.0);
+                    self.num = Some(
+                        self.num.unwrap()
+                            + c.to_digit(10).unwrap() as f64 / 10.0f64.powi(self.pow_dec),
+                    );
+                    self.pow_dec += 1
                 }
                 LexToken::Match
             }
@@ -279,6 +285,7 @@ impl Tokenable for TAVariable {
 impl Tokenable for TAArithOp {
     fn consume_char(&mut self, c: char) -> LexToken {
         if self.dead || self.op.is_some() {
+            self.dead = true;
             return LexToken::NoMatch;
         }
         match c {
@@ -324,6 +331,7 @@ impl Tokenable for TAArithOp {
 impl Tokenable for TALParan {
     fn consume_char(&mut self, c: char) -> LexToken {
         if self.dead || self.p.is_some() {
+            self.dead = true;
             return LexToken::NoMatch;
         }
         if c == '(' || c == '[' || c == '{' {
@@ -354,6 +362,7 @@ impl Tokenable for TALParan {
 impl Tokenable for TARParan {
     fn consume_char(&mut self, c: char) -> LexToken {
         if self.dead || self.p.is_some() {
+            self.dead = true;
             return LexToken::NoMatch;
         }
         if c == ')' || c == ']' || c == '}' {
@@ -384,8 +393,8 @@ impl Tokenable for TARParan {
 #[cfg(test)]
 mod test {
     use crate::lexer::{
-        token_automata::{TAEq, TAVariable},
-        tokens::Token,
+        token_automata::{TAArithOp, TAEq, TALParan, TANum, TARParan, TAVariable},
+        tokens::{ArithOperation, Token, F64},
         Tokenable,
     };
 
@@ -447,6 +456,150 @@ mod test {
             let mut automata = TAVariable::new();
             let automata: &mut dyn Tokenable = &mut automata;
             assert!(tokenize(automata, s).is_none());
+        }
+    }
+
+    #[test]
+    fn test_op() {
+        {
+            let s = "--";
+            let mut automata = TAArithOp::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s).is_none());
+        }
+        {
+            let s = "+";
+            let mut automata = TAArithOp::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(Some(Token::ArithOp(ArithOperation::Add)) == tokenize(automata, s));
+        }
+        {
+            let s = "*";
+            let mut automata = TAArithOp::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(Some(Token::ArithOp(ArithOperation::Mul)) == tokenize(automata, s));
+        }
+        {
+            let s = "/";
+            let mut automata = TAArithOp::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(Some(Token::ArithOp(ArithOperation::Div)) == tokenize(automata, s));
+        }
+        {
+            let s = "-";
+            let mut automata = TAArithOp::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(Some(Token::ArithOp(ArithOperation::Sub)) == tokenize(automata, s));
+        }
+    }
+
+    #[test]
+    fn test_Paren() {
+        {
+            let s = "([";
+            let mut automata = TALParan::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s).is_none());
+        }
+        {
+            let s = "[";
+            let mut automata = TALParan::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(Some(Token::LParen('[')) == tokenize(automata, s));
+        }
+        {
+            let s = "(";
+            let mut automata = TALParan::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(Some(Token::LParen('(')) == tokenize(automata, s));
+        }
+        {
+            let s = "{";
+            let mut automata = TALParan::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(Some(Token::LParen('{')) == tokenize(automata, s));
+        }
+        {
+            let s = ")]";
+            let mut automata = TARParan::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s).is_none());
+        }
+        {
+            let s = "]";
+            let mut automata = TARParan::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(Some(Token::RParen(']')) == tokenize(automata, s));
+        }
+        {
+            let s = ")";
+            let mut automata = TARParan::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(Some(Token::RParen(')')) == tokenize(automata, s));
+        }
+        {
+            let s = "}";
+            let mut automata = TARParan::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(Some(Token::RParen('}')) == tokenize(automata, s));
+        }
+    }
+
+    #[test]
+    fn test_num() {
+        {
+            let s = "yav";
+            let mut automata = TANum::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s).is_none());
+        }
+        {
+            let s = "1";
+            let mut automata = TANum::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s) == Some(Token::Num(F64(1.0))));
+        }
+        {
+            let s = "1.0";
+            let mut automata = TANum::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s) == Some(Token::Num(F64(1.0))));
+        }
+        {
+            let s = "1.235";
+            let mut automata = TANum::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s) == Some(Token::Num(F64(1.235))));
+        }
+        {
+            let s = "1337";
+            let mut automata = TANum::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s) == Some(Token::Num(F64(1337.0))));
+        }
+        {
+            let s = "--1337.211028";
+            let mut automata = TANum::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s).is_none());
+        }
+        {
+            let s = "-127.i211028";
+            let mut automata = TANum::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s).is_none());
+        }
+        {
+            let s = "-1337.42";
+            let mut automata = TANum::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s) == Some(Token::Num(F64(-1337.42))));
+        }
+        {
+            let s = "0.4269";
+            let mut automata = TANum::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(tokenize(automata, s) == Some(Token::Num(F64(0.4269))));
         }
     }
 }
