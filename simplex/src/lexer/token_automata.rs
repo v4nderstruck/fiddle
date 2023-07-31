@@ -208,6 +208,7 @@ impl Tokenable for TANum {
     fn reset(&mut self) {
         self.dead = false;
         self.signess = 1;
+        self.pow_dec = 1;
         self.num = None;
         self.int_part = true;
     }
@@ -453,7 +454,7 @@ mod test {
             assert!(Some(Token::Variable(String::from(s))) == tokenize(automata, s));
         }
         {
-            let s = "a_1";
+            let s = "a_19";
             let mut automata = TAVariable::new();
             let automata: &mut dyn Tokenable = &mut automata;
             assert!(Some(Token::Variable(String::from(s))) == tokenize(automata, s));

@@ -1,4 +1,4 @@
-use std::io::{BufRead};
+use std::io::BufRead;
 
 use super::{
     token_automata::{TAArithOp, TAEq, TAFun, TALParan, TANum, TARParan, TAVariable},
@@ -50,7 +50,7 @@ impl<R: BufRead> TokenizerIterator<R> {
             current_line_string: None,
             current_line_number: 1,
             pointer: 0,
-            state_machine: vec![ta_var, ta_num, ta_op, ta_lparen, ta_rparen, ta_func, ta_eq],
+            state_machine: vec![ta_op, ta_eq, ta_lparen, ta_rparen, ta_func, ta_num, ta_var],
         }
     }
 
@@ -102,49 +102,92 @@ impl<R: BufRead> Iterator for TokenizerIterator<R> {
                     let mut current_line_string = String::new();
                     let num_bytes = self.tokenizer.reader.read_line(&mut current_line_string);
                     if num_bytes.is_err() {
-                        return None;
+                        let has_data_left = match self.tokenizer.reader.fill_buf() {
+                            Ok(data) => !data.is_empty(),
+                            Err(_) => false,
+                        };
+
+                        if has_data_left {
+                            self.current_line_number += 1;
+                            continue;
+                        } else {
+                            return None;
+                        }
                     }
+                    println!("read: {}", current_line_string);
                     self.current_line_string = Some(current_line_string);
                     self.pointer = 0;
                 }
-                Some(current_line_string) => match current_line_string.chars().nth(self.pointer) {
-                    Some(c) => {
-                        if c == '\n' {
-                            self.current_line_number += 1;
-                        }
+                Some(current_line_string) => {
+                    match &current_line_string.chars().nth(self.pointer) {
+                        Some(c) => {
+                            if *c == '\n' {
+                                self.current_line_number += 1;
+                            }
+                            if (*c == '\r' || *c == ' ' || *c == '\t' || *c == '\n')
+                                && states.is_empty()
+                            {
+                                self.pointer += 1;
+                                continue;
+                            }
+                            println!("consume: {}", c);
 
-                        let current_states = self.step(c);
-                        if !states.is_empty() {
-                            for (i, (current_matcher, _t)) in current_states.iter().enumerate() {
-                                let (prev_matcher, prev_t) = &states[i];
-
-                                if *current_matcher == LexState::NoMatch
-                                    && (*prev_matcher == LexState::Match
-                                        || *prev_matcher == LexState::Final)
+                            let current_states = self.step(*c);
+                            if !states.is_empty() {
+                                let mut return_token = None;
+                                for (i, (current_matcher, _t)) in current_states.iter().enumerate()
                                 {
-                                    // skip whitespace etc
-                                    if c == '\r' || c == '\n' || c == ' ' || c == '\t' {
-                                        self.pointer += 1;
+                                    let (prev_matcher, prev_t) = &states[i];
+
+                                    if *current_matcher == LexState::NoMatch
+                                        && *prev_matcher == LexState::Final
+                                    {
+                                        // skip whitespace etc
+                                        if *c == '\r' || *c == '\n' || *c == ' ' || *c == '\t' {
+                                            self.pointer += 1;
+                                            println!("return: {:?}", prev_t.clone());
+                                            return prev_t.clone();
+                                        }
+                                        return_token = Some(prev_t.clone());
                                     }
-                                    return prev_t.clone();
+                                    if *current_matcher != LexState::NoMatch
+                                        && *prev_matcher != LexState::NoMatch
+                                    {
+                                        return_token = None; // longer Match possible
+                                    }
+                                }
+
+                                if let Some(return_token) = return_token {
+                                    println!("return: {:?}", return_token);
+                                    return return_token;
                                 }
                             }
-                        }
-                        states = current_states;
-                        self.pointer += 1;
-                    }
-                    None => {
-                        self.current_line_string = None;
-                        self.pointer = 0;
 
-                        for (matcher, token) in &states {
-                            if LexState::Final == *matcher {
-                                return token.clone();
-                            }
+                            states = current_states;
+                            self.pointer += 1;
                         }
-                        return None;
+                        None => {
+                            let has_data_left = match self.tokenizer.reader.fill_buf() {
+                                Ok(data) => !data.is_empty(),
+                                Err(_) => false,
+                            };
+
+                            if has_data_left && states.is_empty() {
+                                self.current_line_string = None;
+                                continue;
+                            }
+                            self.current_line_string = None;
+                            self.pointer = 0;
+
+                            for (matcher, token) in &states {
+                                if LexState::Final == *matcher {
+                                    return token.clone();
+                                }
+                            }
+                            return None;
+                        }
                     }
-                },
+                }
             }
         }
     }
@@ -155,12 +198,108 @@ mod tests {
     use crate::lexer::tokens::{ArithOperation, Token, F64};
 
     #[test]
-    fn test_tokenizer() {
-        let tokenizer = super::Tokenizer::new("1 + 2".as_bytes());
-        let tokens = tokenizer.into_iter().collect::<Vec<_>>();
-        assert!(tokens.len() == 3);
-        assert!(tokens[0] == Token::Num(F64(1.0)));
-        assert!(tokens[1] == Token::ArithOp(ArithOperation::Add));
-        assert!(tokens[2] == Token::Num(F64(2.0)));
+    fn test_tokenizer_one_liners() {
+        {
+            let tokenizer = super::Tokenizer::new("(1/2.5 = x_2 - 2.01)".as_bytes());
+            let tokens = tokenizer.into_iter().collect::<Vec<_>>();
+            assert!(tokens[0] == Token::LParen('('));
+            assert!(tokens[1] == Token::Num(F64(1.0)));
+            assert!(tokens[2] == Token::ArithOp(ArithOperation::Div));
+            assert!(tokens[3] == Token::Num(F64(2.5)));
+            assert!(tokens[4] == Token::Eq);
+            assert!(tokens[5] == Token::Variable("x_2".to_string()));
+            assert!(tokens[6] == Token::ArithOp(ArithOperation::Sub));
+            assert!(tokens[7] == Token::Num(F64(2.01)));
+            assert!(tokens[8] == Token::RParen(')'));
+            assert!(tokens.len() == 9);
+        }
+
+        {
+            let tokenizer = super::Tokenizer::new("max x /-2.1] min stru".as_bytes());
+            let tokens = tokenizer.into_iter().collect::<Vec<_>>();
+            assert!(tokens[0] == Token::Fun("max".to_string()));
+            assert!(tokens[1] == Token::Variable("x".to_string()));
+            assert!(tokens[2] == Token::ArithOp(ArithOperation::Div));
+            assert!(tokens[3] == Token::Num(F64(-2.1)));
+            assert!(tokens[4] == Token::RParen(']'));
+            assert!(tokens[5] == Token::Fun("min".to_string()));
+            assert!(tokens[6] == Token::Variable("stru".to_string()));
+            assert!(tokens.len() == 7);
+        }
+        {
+            let tokenizer = super::Tokenizer::new("1 + 2".as_bytes());
+            let tokens = tokenizer.into_iter().collect::<Vec<_>>();
+            assert!(tokens.len() == 3);
+            assert!(tokens[0] == Token::Num(F64(1.0)));
+            assert!(tokens[1] == Token::ArithOp(ArithOperation::Add));
+            assert!(tokens[2] == Token::Num(F64(2.0)));
+        }
+        {
+            let tokenizer = super::Tokenizer::new("2s + 7x_1 = -1.257ax_22".as_bytes());
+            let tokens = tokenizer.into_iter().collect::<Vec<_>>();
+            println!("{:?}", tokens);
+            assert!(tokens[0] == Token::Num(F64(2.0)));
+            assert!(tokens[1] == Token::Variable("s".to_string()));
+            assert!(tokens[2] == Token::ArithOp(ArithOperation::Add));
+            assert!(tokens[3] == Token::Num(F64(7.0)));
+            assert!(tokens[4] == Token::Variable("x_1".to_string()));
+            assert!(tokens[5] == Token::Eq);
+            assert!(tokens[6] == Token::Num(F64(-1.257)));
+            assert!(tokens[7] == Token::Variable("ax_22".to_string()));
+            assert!(tokens.len() == 8);
+        }
+        {
+            let tokenizer =
+                super::Tokenizer::new("max    x    /    -2.1]        min     -stru ".as_bytes());
+            let tokens = tokenizer.into_iter().collect::<Vec<_>>();
+            println!("{:?}", tokens);
+            assert!(tokens[0] == Token::Fun("max".to_string()));
+            assert!(tokens[1] == Token::Variable("x".to_string()));
+            assert!(tokens[2] == Token::ArithOp(ArithOperation::Div));
+            assert!(tokens[3] == Token::Num(F64(-2.1)));
+            assert!(tokens[4] == Token::RParen(']'));
+            assert!(tokens[5] == Token::Fun("min".to_string()));
+            assert!(tokens[6] == Token::ArithOp(ArithOperation::Sub));
+            assert!(tokens[7] == Token::Variable("stru".to_string()));
+            assert!(tokens.len() == 8);
+        }
+    }
+
+    #[test]
+    fn test_tokenizer_multi_line() {
+        {
+            let input = "
+max {x1 - x2  = -1.291mi}
+st {
+    -1.21x1 / -a = 1000
+}
+";
+            let tokenizer = super::Tokenizer::new(input.as_bytes());
+            let tokens = tokenizer.into_iter().collect::<Vec<_>>();
+            println!("{:?}", tokens);
+            let truth = vec![
+                Token::Fun("max".to_string()),
+                Token::LParen('{'),
+                Token::Variable("x1".to_string()),
+                Token::ArithOp(ArithOperation::Sub),
+                Token::Variable("x2".to_string()),
+                Token::Eq,
+                Token::Num(F64(-1.291)),
+                Token::Variable("mi".to_string()),
+                Token::RParen('}'),
+                Token::Fun("st".to_string()),
+                Token::LParen('{'),
+                Token::Num(F64(-1.21)),
+                Token::Variable("x1".to_string()),
+                Token::ArithOp(ArithOperation::Div),
+                Token::ArithOp(ArithOperation::Sub),
+                Token::Variable("a".to_string()),
+                Token::Eq,
+                Token::Num(F64(1000.0)),
+                Token::RParen('}'),
+            ];
+            assert!(tokens == truth);
+            assert!(tokens.len() == truth.len());
+        }
     }
 }
