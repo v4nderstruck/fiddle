@@ -121,8 +121,10 @@ impl<R: BufRead> Iterator for TokenizerIterator<R> {
                 Some(current_line_string) => {
                     match &current_line_string.chars().nth(self.pointer) {
                         Some(c) => {
-                            if *c == '\n' {
+                            if *c == '\n' && states.is_empty() {
                                 self.current_line_number += 1;
+                                self.pointer += 1;
+                                return Some(Token::EOL);
                             }
                             if (*c == '\r' || *c == ' ' || *c == '\t' || *c == '\n')
                                 && states.is_empty()
@@ -143,7 +145,7 @@ impl<R: BufRead> Iterator for TokenizerIterator<R> {
                                         && *prev_matcher == LexState::Final
                                     {
                                         // skip whitespace etc
-                                        if *c == '\r' || *c == '\n' || *c == ' ' || *c == '\t' {
+                                        if  *c == ' ' || *c == '\t' {
                                             self.pointer += 1;
                                             println!("return: {:?}", prev_t.clone());
                                             return prev_t.clone();
@@ -278,6 +280,7 @@ st {
             let tokens = tokenizer.into_iter().collect::<Vec<_>>();
             println!("{:?}", tokens);
             let truth = vec![
+                Token::EOL,
                 Token::Fun("max".to_string()),
                 Token::LParen('{'),
                 Token::Variable("x1".to_string()),
@@ -287,8 +290,10 @@ st {
                 Token::Num(F64(-1.291)),
                 Token::Variable("mi".to_string()),
                 Token::RParen('}'),
+                Token::EOL,
                 Token::Fun("st".to_string()),
                 Token::LParen('{'),
+                Token::EOL,
                 Token::Num(F64(-1.21)),
                 Token::Variable("x1".to_string()),
                 Token::ArithOp(ArithOperation::Div),
@@ -296,7 +301,9 @@ st {
                 Token::Variable("a".to_string()),
                 Token::Eq,
                 Token::Num(F64(1000.0)),
+                Token::EOL,
                 Token::RParen('}'),
+                Token::EOL,
             ];
             assert!(tokens == truth);
             assert!(tokens.len() == truth.len());

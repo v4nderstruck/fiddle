@@ -24,6 +24,7 @@ pub enum Token {
     Fun(String),             // max, min, st
     Num(F64),                // number
     Eq,                      // =
+    EOL,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
