@@ -1,7 +1,7 @@
 use std::io::BufRead;
 
 use super::{
-    token_automata::{TAArithOp, TAEq, TAFun, TALParan, TANum, TARParan, TAVariable},
+    token_automata::{TAArithOp, TACmp, TAFun, TALParan, TANum, TARParan, TAVariable},
     tokens::{LexState, Token},
     Tokenable,
 };
@@ -43,14 +43,14 @@ impl<R: BufRead> TokenizerIterator<R> {
         let ta_lparen: Box<dyn Tokenable> = Box::new(TALParan::new());
         let ta_rparen: Box<dyn Tokenable> = Box::new(TARParan::new());
         let ta_func: Box<dyn Tokenable> = Box::new(TAFun::new());
-        let ta_eq: Box<dyn Tokenable> = Box::new(TAEq::new());
+        let ta_cmp: Box<dyn Tokenable> = Box::new(TACmp::new());
 
         Self {
             tokenizer,
             current_line_string: None,
             current_line_number: 1,
             pointer: 0,
-            state_machine: vec![ta_op, ta_eq, ta_lparen, ta_rparen, ta_func, ta_num, ta_var],
+            state_machine: vec![ta_op, ta_lparen, ta_rparen, ta_cmp, ta_func, ta_num, ta_var],
         }
     }
 
@@ -58,6 +58,15 @@ impl<R: BufRead> TokenizerIterator<R> {
         for sm in self.state_machine.iter_mut() {
             sm.reset();
         }
+    }
+
+    pub fn raise_parsing_error(&self, msg: &str) {
+        eprintln!(
+            "Parsing error at line {}: {}\nError occured at:{}",
+            self.current_line_number,
+            msg,
+            self.current_line_string.as_ref().unwrap_or(&String::new())
+        );
     }
 
     fn step(&mut self, c: char) -> Vec<(LexState, Option<Token>)> {
@@ -145,7 +154,7 @@ impl<R: BufRead> Iterator for TokenizerIterator<R> {
                                         && *prev_matcher == LexState::Final
                                     {
                                         // skip whitespace etc
-                                        if  *c == ' ' || *c == '\t' {
+                                        if *c == ' ' || *c == '\t' {
                                             self.pointer += 1;
                                             println!("return: {:?}", prev_t.clone());
                                             return prev_t.clone();
@@ -197,18 +206,18 @@ impl<R: BufRead> Iterator for TokenizerIterator<R> {
 
 #[cfg(test)]
 mod tests {
-    use crate::lexer::tokens::{ArithOperation, Token, F64};
+    use crate::lexer::tokens::{ArithOperation, CmpOperation, Token, F64};
 
     #[test]
     fn test_tokenizer_one_liners() {
         {
-            let tokenizer = super::Tokenizer::new("(1/2.5 = x_2 - 2.01)".as_bytes());
+            let tokenizer = super::Tokenizer::new("(1/2.5 <= x_2 - 2.01)".as_bytes());
             let tokens = tokenizer.into_iter().collect::<Vec<_>>();
             assert!(tokens[0] == Token::LParen('('));
             assert!(tokens[1] == Token::Num(F64(1.0)));
             assert!(tokens[2] == Token::ArithOp(ArithOperation::Div));
             assert!(tokens[3] == Token::Num(F64(2.5)));
-            assert!(tokens[4] == Token::Eq);
+            assert!(tokens[4] == Token::Cmp(CmpOperation::Leq));
             assert!(tokens[5] == Token::Variable("x_2".to_string()));
             assert!(tokens[6] == Token::ArithOp(ArithOperation::Sub));
             assert!(tokens[7] == Token::Num(F64(2.01)));
@@ -245,7 +254,7 @@ mod tests {
             assert!(tokens[2] == Token::ArithOp(ArithOperation::Add));
             assert!(tokens[3] == Token::Num(F64(7.0)));
             assert!(tokens[4] == Token::Variable("x_1".to_string()));
-            assert!(tokens[5] == Token::Eq);
+            assert!(tokens[5] == Token::Cmp(CmpOperation::Eq));
             assert!(tokens[6] == Token::Num(F64(-1.257)));
             assert!(tokens[7] == Token::Variable("ax_22".to_string()));
             assert!(tokens.len() == 8);
@@ -273,7 +282,7 @@ mod tests {
             let input = "
 max {x1 - x2  = -1.291mi}
 st {
-    -1.21x1 / -a = 1000
+    -1.21x1 / -a >= 1000
 }
 ";
             let tokenizer = super::Tokenizer::new(input.as_bytes());
@@ -286,7 +295,7 @@ st {
                 Token::Variable("x1".to_string()),
                 Token::ArithOp(ArithOperation::Sub),
                 Token::Variable("x2".to_string()),
-                Token::Eq,
+                Token::Cmp(CmpOperation::Eq),
                 Token::Num(F64(-1.291)),
                 Token::Variable("mi".to_string()),
                 Token::RParen('}'),
@@ -299,7 +308,7 @@ st {
                 Token::ArithOp(ArithOperation::Div),
                 Token::ArithOp(ArithOperation::Sub),
                 Token::Variable("a".to_string()),
-                Token::Eq,
+                Token::Cmp(CmpOperation::Geq),
                 Token::Num(F64(1000.0)),
                 Token::EOL,
                 Token::RParen('}'),

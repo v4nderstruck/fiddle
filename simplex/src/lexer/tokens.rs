@@ -16,6 +16,17 @@ impl PartialEq for F64 {
 impl Eq for F64 {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CmpOperation {
+    Eq,
+    Lt,
+    Gt,
+    Leq,
+    Geq,
+}
+
+// TODO: Token::Eq should be Token::Cmp(CmpOperation)
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Token {
     Variable(String),        // Variable Name
     ArithOp(ArithOperation), // +, -, *, /
@@ -23,7 +34,7 @@ pub enum Token {
     RParen(char),            // ), ], }
     Fun(String),             // max, min, st
     Num(F64),                // number
-    Eq,                      // =
+    Cmp(CmpOperation),       //
     EOL,
 }
 

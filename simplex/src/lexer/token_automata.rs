@@ -1,5 +1,5 @@
 use super::{
-    tokens::{ArithOperation, LexState, Token, F64},
+    tokens::{ArithOperation, CmpOperation, LexState, Token, F64},
     Tokenable,
 };
 
@@ -39,8 +39,8 @@ pub struct TANum {
 }
 
 #[derive(Debug)]
-pub struct TAEq {
-    eq: bool,
+pub struct TACmp {
+    cmp: Option<CmpOperation>,
     dead: bool,
 }
 
@@ -105,44 +105,71 @@ impl Tokenable for TAFun {
     }
 }
 
-impl TAEq {
+impl TACmp {
     pub fn new() -> Self {
         Self {
-            eq: false,
+            cmp: None,
             dead: false,
         }
     }
 }
 
-impl Tokenable for TAEq {
+impl Tokenable for TACmp {
     fn consume_char(&mut self, c: char) -> LexState {
         if self.dead {
             return LexState::NoMatch;
         }
-        if c == '=' {
-            if self.eq {
-                self.dead = true;
-                return LexState::NoMatch;
+        match c {
+            '=' => {
+                if let Some(prev) = &self.cmp {
+                    match prev {
+                        CmpOperation::Lt => {
+                            self.cmp = Some(CmpOperation::Leq);
+                            LexState::Final
+                        }
+                        CmpOperation::Gt => {
+                            self.cmp = Some(CmpOperation::Geq);
+                            LexState::Final
+                        }
+                        _ => {
+                            self.dead = true;
+                            LexState::NoMatch
+                        }
+                    }
+                } else if self.cmp.is_none() {
+                    self.cmp = Some(CmpOperation::Eq);
+                    return LexState::Final;
+                } else {
+                    self.dead = true;
+                    return LexState::NoMatch;
+                }
             }
-            self.eq = true;
-            LexState::Final
-        } else {
-            self.dead = true;
-            LexState::NoMatch
+            '<' => {
+                self.cmp = Some(CmpOperation::Lt);
+                LexState::Final
+            }
+            '>' => {
+                self.cmp = Some(CmpOperation::Gt);
+                LexState::Final
+            }
+            _ => {
+                self.dead = true;
+                LexState::NoMatch
+            }
         }
     }
 
     fn reset(&mut self) {
         self.dead = false;
-        self.eq = false;
+        self.cmp = None;
     }
 
     fn tokenize(&self) -> Option<super::tokens::Token> {
         if self.dead {
             return None;
         }
-        if self.eq {
-            return Some(Token::Eq);
+        if let Some(cmp) = &self.cmp {
+            return Some(Token::Cmp(cmp.clone()));
         }
         None
     }
@@ -407,8 +434,8 @@ impl Tokenable for TARParan {
 #[cfg(test)]
 mod test {
     use crate::lexer::{
-        token_automata::{TAArithOp, TAEq, TAFun, TALParan, TANum, TARParan, TAVariable},
-        tokens::{ArithOperation, Token, F64},
+        token_automata::{TAArithOp, TACmp, TAFun, TALParan, TANum, TARParan, TAVariable},
+        tokens::{ArithOperation, CmpOperation, Token, F64},
         Tokenable,
     };
 
@@ -419,22 +446,40 @@ mod test {
         automata.tokenize()
     }
     #[test]
-    fn test_eq() {
+    fn test_cmp() {
         {
             let s = "=";
-            let mut automata = TAEq::new();
+            let mut automata = TACmp::new();
             let automata: &mut dyn Tokenable = &mut automata;
-            assert!(Some(Token::Eq) == tokenize(automata, s));
+            assert!(Some(Token::Cmp(CmpOperation::Eq)) == tokenize(automata, s));
+        }
+        {
+            let s = "<";
+            let mut automata = TACmp::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(Some(Token::Cmp(CmpOperation::Lt)) == tokenize(automata, s));
+        }
+        {
+            let s = "<=";
+            let mut automata = TACmp::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(Some(Token::Cmp(CmpOperation::Leq)) == tokenize(automata, s));
+        }
+        {
+            let s = ">=";
+            let mut automata = TACmp::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            assert!(Some(Token::Cmp(CmpOperation::Geq)) == tokenize(automata, s));
         }
         {
             let s = "==";
-            let mut automata = TAEq::new();
+            let mut automata = TACmp::new();
             let automata: &mut dyn Tokenable = &mut automata;
             assert!(tokenize(automata, s).is_none());
         }
         {
             let s = ".=";
-            let mut automata = TAEq::new();
+            let mut automata = TACmp::new();
             let automata: &mut dyn Tokenable = &mut automata;
             assert!(tokenize(automata, s).is_none());
         }
@@ -508,7 +553,7 @@ mod test {
     }
 
     #[test]
-    fn test_Paren() {
+    fn test_paren() {
         {
             let s = "([";
             let mut automata = TALParan::new();
