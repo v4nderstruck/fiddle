@@ -24,8 +24,6 @@ pub enum CmpOperation {
     Geq,
 }
 
-// TODO: Token::Eq should be Token::Cmp(CmpOperation)
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Token {
     Variable(String),        // Variable Name

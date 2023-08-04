@@ -33,6 +33,8 @@ pub struct TokenizerIterator<R: BufRead> {
     current_line_number: u32,
     pointer: usize,
     state_machine: Vec<Box<dyn Tokenable>>,
+
+    peek_buffer: Option<Token>,
 }
 
 impl<R: BufRead> TokenizerIterator<R> {
@@ -51,6 +53,7 @@ impl<R: BufRead> TokenizerIterator<R> {
             current_line_number: 1,
             pointer: 0,
             state_machine: vec![ta_op, ta_lparen, ta_rparen, ta_cmp, ta_func, ta_num, ta_var],
+            peek_buffer: None,
         }
     }
 
@@ -62,10 +65,10 @@ impl<R: BufRead> TokenizerIterator<R> {
 
     pub fn raise_parsing_error(&self, msg: &str) {
         eprintln!(
-            "Parsing error at line {}: {}\nError occured at:{}",
+            "Parsing error at line {}: {}\nError:{}\n",
             self.current_line_number,
-            msg,
-            self.current_line_string.as_ref().unwrap_or(&String::new())
+            self.current_line_string.as_ref().unwrap_or(&String::new()),
+            msg
         );
     }
 
@@ -87,12 +90,8 @@ impl<R: BufRead> TokenizerIterator<R> {
         }
         states
     }
-}
 
-impl<R: BufRead> Iterator for TokenizerIterator<R> {
-    type Item = Token;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    pub fn next_internal(&mut self) -> Option<Token> {
         self.reset_state_machine();
 
         // concept for backtracking automata:
@@ -104,6 +103,12 @@ impl<R: BufRead> Iterator for TokenizerIterator<R> {
         // 4. repeat 1-4 until we have a token or EOF
 
         let mut states: Vec<(LexState, Option<Token>)> = vec![];
+
+        if let Some(p) = &self.peek_buffer {
+            let token = p.to_owned();
+            self.peek_buffer = None;
+            return Some(token);
+        }
 
         loop {
             match &self.current_line_string {
@@ -202,6 +207,24 @@ impl<R: BufRead> Iterator for TokenizerIterator<R> {
             }
         }
     }
+
+    pub fn peek(&mut self) -> Option<Token> {
+        if let Some(p) = &self.peek_buffer {
+            Some(p.clone())
+        } else {
+            let token = self.next();
+            self.peek_buffer = token.clone();
+            token
+        }
+    }
+}
+
+impl<R: BufRead> Iterator for TokenizerIterator<R> {
+    type Item = Token;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_internal()
+    }
 }
 
 #[cfg(test)]
@@ -283,8 +306,7 @@ mod tests {
 max {x1 - x2  = -1.291mi}
 st {
     -1.21x1 / -a >= 1000
-}
-";
+}";
             let tokenizer = super::Tokenizer::new(input.as_bytes());
             let tokens = tokenizer.into_iter().collect::<Vec<_>>();
             println!("{:?}", tokens);
@@ -312,7 +334,6 @@ st {
                 Token::Num(F64(1000.0)),
                 Token::EOL,
                 Token::RParen('}'),
-                Token::EOL,
             ];
             assert!(tokens == truth);
             assert!(tokens.len() == truth.len());
