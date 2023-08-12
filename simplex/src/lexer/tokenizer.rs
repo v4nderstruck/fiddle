@@ -128,7 +128,7 @@ impl<R: BufRead> TokenizerIterator<R> {
                             return None;
                         }
                     }
-                    println!("read: {}", current_line_string);
+                    // println!("read: {}", current_line_string);
                     self.current_line_string = Some(current_line_string);
                     self.pointer = 0;
                 }
@@ -146,7 +146,7 @@ impl<R: BufRead> TokenizerIterator<R> {
                                 self.pointer += 1;
                                 continue;
                             }
-                            println!("consume: {}", c);
+                            // println!("consume: {}", c);
 
                             let current_states = self.step(*c);
                             if !states.is_empty() {
@@ -161,7 +161,7 @@ impl<R: BufRead> TokenizerIterator<R> {
                                         // skip whitespace etc
                                         if *c == ' ' || *c == '\t' {
                                             self.pointer += 1;
-                                            println!("return: {:?}", prev_t.clone());
+                                            // println!("return: {:?}", prev_t.clone());
                                             return prev_t.clone();
                                         }
                                         return_token = Some(prev_t.clone());
@@ -174,7 +174,7 @@ impl<R: BufRead> TokenizerIterator<R> {
                                 }
 
                                 if let Some(return_token) = return_token {
-                                    println!("return: {:?}", return_token);
+                                    // println!("return: {:?}", return_token);
                                     return return_token;
                                 }
                             }
@@ -271,7 +271,7 @@ mod tests {
         {
             let tokenizer = super::Tokenizer::new("2s + 7x_1 = -1.257ax_22".as_bytes());
             let tokens = tokenizer.into_iter().collect::<Vec<_>>();
-            println!("{:?}", tokens);
+            // println!("{:?}", tokens);
             assert!(tokens[0] == Token::Num(F64(2.0)));
             assert!(tokens[1] == Token::Variable("s".to_string()));
             assert!(tokens[2] == Token::ArithOp(ArithOperation::Add));
@@ -286,7 +286,7 @@ mod tests {
             let tokenizer =
                 super::Tokenizer::new("max    x    /    -2.1]        min     -stru ".as_bytes());
             let tokens = tokenizer.into_iter().collect::<Vec<_>>();
-            println!("{:?}", tokens);
+            // println!("{:?}", tokens);
             assert!(tokens[0] == Token::Fun("max".to_string()));
             assert!(tokens[1] == Token::Variable("x".to_string()));
             assert!(tokens[2] == Token::ArithOp(ArithOperation::Div));
@@ -309,7 +309,7 @@ st {
 }";
             let tokenizer = super::Tokenizer::new(input.as_bytes());
             let tokens = tokenizer.into_iter().collect::<Vec<_>>();
-            println!("{:?}", tokens);
+            // println!("{:?}", tokens);
             let truth = vec![
                 Token::EOL,
                 Token::Fun("max".to_string()),

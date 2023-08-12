@@ -1,10 +1,13 @@
 use std::io::BufRead;
 
-use crate::lexer::{tokenizer::Tokenizer, tokens::Token};
+use crate::{
+    lexer::{tokenizer::Tokenizer, tokens::Token},
+    semantics::symbols::Symbol,
+};
 
 use super::syntax::program;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ASTNodeTypes {
     Token,
     Program,
@@ -41,8 +44,8 @@ impl ASTNode {
 
 #[derive(Debug)]
 pub struct AST {
-    data: Vec<Token>,
-    nodes: Vec<ASTNode>,
+    pub data: Vec<Token>,
+    pub nodes: Vec<ASTNode>,
 }
 
 impl AST {
@@ -72,6 +75,30 @@ impl AST {
         }
         self.nodes.len() - 1
     }
+
+    pub fn find_root(&self, ntype: ASTNodeTypes) -> Option<usize> {
+        for (idx, node) in self.nodes.iter().enumerate() {
+            if node.node_type == ntype {
+                return Some(idx);
+            }
+        }
+        None
+    }
+
+    pub fn print_subtree(&self, root: usize, level: usize) {
+        let node = &self.nodes[root];
+        let indent = "-".repeat(level * 2);
+        if let Some(token_idx) = node.data_index {
+            println!("{} {:?}", indent, &self.data[token_idx]);
+        }
+
+        if let Some(children) = &node.children {
+            for child in children {
+                self.print_subtree(*child, level + 1);
+            }
+        }
+    }
+
     pub fn new() -> Self {
         Self {
             data: Vec::new(),
@@ -101,7 +128,7 @@ st {
 }
 ";
             let ast = construct_ast(input.as_bytes());
-            println!("{:#?}", ast);
+            // println!("{:#?}", ast);
             assert!(ast.is_ok());
         }
     }
