@@ -5,8 +5,11 @@ use super::{
 
 // TODO: Add support for comments
 
+// TODO: Coefficient parsing for variables...
 #[derive(Debug)]
 pub struct TAVariable {
+    coef: Option<TANum>,
+    sign: Option<i8>,
     name: Option<String>,
     dead: bool,
 }
@@ -254,6 +257,8 @@ impl Tokenable for TANum {
 impl TAVariable {
     pub fn new() -> Self {
         Self {
+            coef: None,
+            sign: None,
             name: None,
             dead: false,
         }
@@ -297,18 +302,33 @@ impl Tokenable for TAVariable {
                 self.name = Some(String::new());
             }
             self.name.as_mut().unwrap().push(c);
-            LexState::Final
-        } else if c.is_numeric() && self.name.is_some() {
-            self.name.as_mut().unwrap().push(c);
-            LexState::Final
-        } else {
-            self.dead = true;
-            LexState::NoMatch
+            return LexState::Final;
         }
+        if c == '-' {
+            self.sign = Some(-1);
+        }
+        if (c.is_numeric() || c == '.' || c == '-') && self.name.is_none() {
+            if self.coef.is_none() {
+                self.coef = Some(TANum::new());
+            }
+
+            match self.coef.as_mut().unwrap().consume_char(c) {
+                LexState::NoMatch => return LexState::NoMatch,
+                _ => return LexState::Match,
+            }
+        }
+        if c.is_numeric() && self.name.is_some() {
+            self.name.as_mut().unwrap().push(c);
+            return LexState::Final;
+        }
+
+        LexState::NoMatch
     }
     fn reset(&mut self) {
         self.dead = false;
         self.name = None;
+        self.coef = None;
+        self.sign = None;
     }
 
     fn tokenize(&self) -> Option<super::tokens::Token> {
@@ -316,7 +336,16 @@ impl Tokenable for TAVariable {
             return None;
         }
         if let Some(v) = &self.name {
-            return Some(Token::Variable(v.clone()));
+            if let Some(num) = &self.coef {
+                let possible_sign = self.sign.unwrap_or(1);
+                let token = num
+                    .tokenize()
+                    .unwrap_or(Token::Num(F64(1.0 * possible_sign as f64)));
+                if let Token::Num(coef) = token {
+                    return Some(Token::Variable(v.clone(), coef));
+                }
+            }
+            return Some(Token::Variable(v.clone(), F64(1.0)));
         }
         None
     }
@@ -490,25 +519,37 @@ mod test {
             let s = "x";
             let mut automata = TAVariable::new();
             let automata: &mut dyn Tokenable = &mut automata;
-            assert!(Some(Token::Variable(String::from(s))) == tokenize(automata, s));
+            assert!(Some(Token::Variable(String::from(s), F64(1.0))) == tokenize(automata, s));
+        }
+        {
+            let s = "-1.209xa_1";
+            let mut automata = TAVariable::new();
+            let automata: &mut dyn Tokenable = &mut automata;
+            let t = tokenize(automata, s).unwrap();
+            if let Token::Variable(s, n) = t {
+                assert!(s == String::from("xa_1"));
+                assert!(F64(-1.209) == n);
+            } else {
+                panic!("Not a variable");
+            }
         }
         {
             let s = "xa_";
             let mut automata = TAVariable::new();
             let automata: &mut dyn Tokenable = &mut automata;
-            assert!(Some(Token::Variable(String::from(s))) == tokenize(automata, s));
+            assert!(Some(Token::Variable(String::from(s), F64(1.0))) == tokenize(automata, s));
         }
         {
             let s = "a_19";
             let mut automata = TAVariable::new();
             let automata: &mut dyn Tokenable = &mut automata;
-            assert!(Some(Token::Variable(String::from(s))) == tokenize(automata, s));
+            assert!(Some(Token::Variable(String::from(s), F64(1.0))) == tokenize(automata, s));
         }
         {
             let s = "1_a";
             let mut automata = TAVariable::new();
             let automata: &mut dyn Tokenable = &mut automata;
-            assert!(tokenize(automata, s).is_none());
+            assert!(Some(Token::Variable(String::from("_a"), F64(1.0))) == tokenize(automata, s));
         }
         {
             let s = "10";

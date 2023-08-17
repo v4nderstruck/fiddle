@@ -159,7 +159,7 @@ pub fn constraint<R: BufRead>(
         Some(Token::RParen('}')) => Ok(()),
         Some(Token::Cmp(_))
         | Some(Token::Num(_))
-        | Some(Token::Variable(_))
+        | Some(Token::Variable(_, _))
         | Some(Token::ArithOp(_))
         | Some(Token::LParen('['))
         | Some(Token::LParen('(')) => {
@@ -215,11 +215,14 @@ pub fn expression_point<R: BufRead>(
         | Some(Token::ArithOp(ArithOperation::Sub))
         | Some(Token::RParen(_))
         | Some(Token::Cmp(_)) => Ok(()),
-        Some(Token::Variable(_))
+        Some(Token::Variable(_, _))
         | Some(Token::Num(_))
         | Some(Token::LParen('('))
         | Some(Token::LParen('[')) => {
             let expression_node = ast.insert_node(None, Some(parent), ASTNodeTypes::Expression);
+            // FIXME: Here originated error from test case, should revisit theoretic concept
+            // simply add coeeficient parser...
+
             term(iterator, ast, expression_node)?;
             expression_point(iterator, ast, expression_node)
         }
@@ -286,7 +289,7 @@ pub fn term<R: BufRead>(
     match pull_and_compare_token(
         iterator,
         &[
-            Token::Variable(String::from("*")),
+            Token::Variable(String::from("*"), F64(1.0)),
             Token::Num(F64(0.0)),
             Token::LParen('('),
             Token::LParen('['),
@@ -294,7 +297,7 @@ pub fn term<R: BufRead>(
         "expected a term",
     ) {
         Ok(t) => match t {
-            Token::Variable(_) | Token::Num(_) => {
+            Token::Variable(_, _) | Token::Num(_) => {
                 ast.insert_node(Some(t), Some(term), ASTNodeTypes::Token);
                 Ok(())
             }

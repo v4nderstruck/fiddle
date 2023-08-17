@@ -20,10 +20,10 @@ pub enum ASTNodeTypes {
 
 #[derive(Debug)]
 pub struct ASTNode {
-    node_type: ASTNodeTypes,
-    parent: Option<usize>,
-    children: Option<Vec<usize>>,
-    data_index: Option<usize>,
+    pub node_type: ASTNodeTypes,
+    pub parent: Option<usize>,
+    pub children: Option<Vec<usize>>,
+    pub data_index: Option<usize>,
 }
 
 impl ASTNode {
@@ -125,6 +125,22 @@ mod test {
 max {x1 - x2 }
 st {
     -1.21x1 / -a >= 1000
+}
+";
+            let ast = construct_ast(input.as_bytes());
+            // println!("{:#?}", ast);
+            assert!(ast.is_ok());
+        }
+    }
+
+    // TODO: Look at this case fix it
+    #[test]
+    fn test_ast_accidentally_accepted() {
+        {
+            let input = "
+max {x1 - - x2 }
+st {
+    -1.21+/x1 / -a >= 1000
 }
 ";
             let ast = construct_ast(input.as_bytes());

@@ -26,7 +26,7 @@ pub enum CmpOperation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Token {
-    Variable(String),        // Variable Name
+    Variable(String, F64),   // Variable Name
     ArithOp(ArithOperation), // +, -, *, /
     LParen(char),            // (, [, {
     RParen(char),            // ), ], }
@@ -41,4 +41,14 @@ pub enum LexState {
     Match,
     NoMatch,
     Final,
+}
+
+#[cfg(test)]
+mod test {
+    use crate::lexer::tokens::F64;
+    #[test]
+    fn test_F64_eq() {
+        assert!(F64(-1.2089999) == F64(-1.209));
+        assert!(F64(-1.2090001) == F64(-1.209));
+    }
 }

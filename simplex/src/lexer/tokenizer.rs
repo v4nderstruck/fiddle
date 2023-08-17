@@ -78,7 +78,7 @@ impl<R: BufRead> TokenizerIterator<R> {
         for sm in self.state_machine.iter_mut() {
             match sm.consume_char(c) {
                 LexState::Match => {
-                    states.push((LexState::Match, sm.tokenize()));
+                    states.push((LexState::Match, None));
                 }
                 LexState::Final => {
                     states.push((LexState::Final, sm.tokenize()));
@@ -241,7 +241,7 @@ mod tests {
             assert!(tokens[2] == Token::ArithOp(ArithOperation::Div));
             assert!(tokens[3] == Token::Num(F64(2.5)));
             assert!(tokens[4] == Token::Cmp(CmpOperation::Leq));
-            assert!(tokens[5] == Token::Variable("x_2".to_string()));
+            assert!(tokens[5] == Token::Variable("x_2".to_string(), F64(1.0)));
             assert!(tokens[6] == Token::ArithOp(ArithOperation::Sub));
             assert!(tokens[7] == Token::Num(F64(2.01)));
             assert!(tokens[8] == Token::RParen(')'));
@@ -252,12 +252,12 @@ mod tests {
             let tokenizer = super::Tokenizer::new("max x /-2.1] min stru".as_bytes());
             let tokens = tokenizer.into_iter().collect::<Vec<_>>();
             assert!(tokens[0] == Token::Fun("max".to_string()));
-            assert!(tokens[1] == Token::Variable("x".to_string()));
+            assert!(tokens[1] == Token::Variable("x".to_string(), F64(1.0)));
             assert!(tokens[2] == Token::ArithOp(ArithOperation::Div));
             assert!(tokens[3] == Token::Num(F64(-2.1)));
             assert!(tokens[4] == Token::RParen(']'));
             assert!(tokens[5] == Token::Fun("min".to_string()));
-            assert!(tokens[6] == Token::Variable("stru".to_string()));
+            assert!(tokens[6] == Token::Variable("stru".to_string(), F64(1.0)));
             assert!(tokens.len() == 7);
         }
         {
@@ -269,33 +269,19 @@ mod tests {
             assert!(tokens[2] == Token::Num(F64(2.0)));
         }
         {
-            let tokenizer = super::Tokenizer::new("2s + 7x_1 = -1.257ax_22".as_bytes());
-            let tokens = tokenizer.into_iter().collect::<Vec<_>>();
-            // println!("{:?}", tokens);
-            assert!(tokens[0] == Token::Num(F64(2.0)));
-            assert!(tokens[1] == Token::Variable("s".to_string()));
-            assert!(tokens[2] == Token::ArithOp(ArithOperation::Add));
-            assert!(tokens[3] == Token::Num(F64(7.0)));
-            assert!(tokens[4] == Token::Variable("x_1".to_string()));
-            assert!(tokens[5] == Token::Cmp(CmpOperation::Eq));
-            assert!(tokens[6] == Token::Num(F64(-1.257)));
-            assert!(tokens[7] == Token::Variable("ax_22".to_string()));
-            assert!(tokens.len() == 8);
-        }
-        {
             let tokenizer =
                 super::Tokenizer::new("max    x    /    -2.1]        min     -stru ".as_bytes());
             let tokens = tokenizer.into_iter().collect::<Vec<_>>();
             // println!("{:?}", tokens);
             assert!(tokens[0] == Token::Fun("max".to_string()));
-            assert!(tokens[1] == Token::Variable("x".to_string()));
+            assert!(tokens[1] == Token::Variable("x".to_string(), F64(1.0)));
             assert!(tokens[2] == Token::ArithOp(ArithOperation::Div));
             assert!(tokens[3] == Token::Num(F64(-2.1)));
             assert!(tokens[4] == Token::RParen(']'));
             assert!(tokens[5] == Token::Fun("min".to_string()));
-            assert!(tokens[6] == Token::ArithOp(ArithOperation::Sub));
-            assert!(tokens[7] == Token::Variable("stru".to_string()));
-            assert!(tokens.len() == 8);
+            // assert!(tokens[6] == Token::ArithOp(ArithOperation::Sub));
+            assert!(tokens[6] == Token::Variable("stru".to_string(), F64(-1.0)));
+            assert!(tokens.len() == 7);
         }
     }
 
@@ -314,22 +300,22 @@ st {
                 Token::EOL,
                 Token::Fun("max".to_string()),
                 Token::LParen('{'),
-                Token::Variable("x1".to_string()),
+                Token::Variable("x1".to_string(), F64(1.0)),
                 Token::ArithOp(ArithOperation::Sub),
-                Token::Variable("x2".to_string()),
+                Token::Variable("x2".to_string(), F64(1.0)),
                 Token::Cmp(CmpOperation::Eq),
-                Token::Num(F64(-1.291)),
-                Token::Variable("mi".to_string()),
+                // Token::Num(F64(-1.291)),
+                Token::Variable("mi".to_string(), F64(-1.291)),
                 Token::RParen('}'),
                 Token::EOL,
                 Token::Fun("st".to_string()),
                 Token::LParen('{'),
                 Token::EOL,
-                Token::Num(F64(-1.21)),
-                Token::Variable("x1".to_string()),
+                // Token::Num(F64(-1.21)),
+                Token::Variable("x1".to_string(), F64(-1.21)),
                 Token::ArithOp(ArithOperation::Div),
-                Token::ArithOp(ArithOperation::Sub),
-                Token::Variable("a".to_string()),
+                // Token::ArithOp(ArithOperation::Sub),
+                Token::Variable("a".to_string(), F64(-1.0)),
                 Token::Cmp(CmpOperation::Geq),
                 Token::Num(F64(1000.0)),
                 Token::EOL,

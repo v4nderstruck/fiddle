@@ -1,6 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{hash_map::Entry, HashMap};
 
-use crate::parser::ast::AST;
+use crate::{
+    lexer::tokens::Token,
+    parser::ast::{ASTNodeTypes, AST},
+};
 
 #[derive(Debug)]
 pub enum Symbol {
@@ -14,8 +17,24 @@ pub struct SymbolTable {
     pub table: HashMap<String, Vec<Symbol>>,
 }
 
-impl From<AST> for SymbolTable {
-    fn from(value: AST) -> Self {
+impl SymbolTable {
+    fn collect_symbols(&mut self, ast: &AST, root: usize) {
         todo!()
+    }
+}
+
+impl From<AST> for SymbolTable {
+    fn from(ast: AST) -> Self {
+        let mut table = Self {
+            table: HashMap::new(),
+        };
+
+        if let Some(obj_root) = ast.find_root(ASTNodeTypes::Objective) {
+            table.collect_symbols(&ast, obj_root);
+        }
+        if let Some(obj_root) = ast.find_root(ASTNodeTypes::Constraints) {
+            table.collect_symbols(&ast, obj_root);
+        }
+        table
     }
 }
