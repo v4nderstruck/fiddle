@@ -1,6 +1,6 @@
 use ndarray::{Array, Ix1, Ix2};
 
-use crate::parser::ast::{ASTNode, ASTNodeTypes, AST};
+use crate::parser::ast::{ASTNodeTypes, AST};
 
 pub struct Simplex {
     objective: Array<f64, Ix1>,   // c^T = (c_1, ..., c_n)
@@ -27,7 +27,7 @@ impl Simplex {
 
 #[cfg(test)]
 mod test {
-    use crate::{parser::ast::construct_ast, semantics::simplex::Simplex};
+    use crate::{parser::ast::construct_ast};
 
     #[test]
     fn test_simplex() {
@@ -41,7 +41,7 @@ st {
 ";
             let ast = construct_ast(input.as_bytes());
             assert!(ast.is_ok());
-            let ast = ast.unwrap();
+            let _ast = ast.unwrap();
         }
     }
 }

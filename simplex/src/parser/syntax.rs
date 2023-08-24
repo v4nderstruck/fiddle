@@ -181,7 +181,7 @@ pub fn constraint<R: BufRead>(
                     "expected number",
                 )?),
                 Some(constraints_node),
-                ASTNodeTypes::Token,
+                ASTNodeTypes::RHS,
             );
 
             pull_and_compare_content(iterator, &[Token::EOL], "Expected line break")?;

@@ -1,15 +1,13 @@
 use std::io::BufRead;
 
-use crate::{
-    lexer::{tokenizer::Tokenizer, tokens::Token},
-    semantics::symbols::Symbol,
-};
+use crate::lexer::{tokenizer::Tokenizer, tokens::Token};
 
 use super::syntax::program;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ASTNodeTypes {
     Token,
+    RHS,
     Program,
     Objective,
     Constraints,
