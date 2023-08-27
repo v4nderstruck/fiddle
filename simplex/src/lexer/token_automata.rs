@@ -5,7 +5,6 @@ use super::{
 
 // TODO: Add support for comments
 
-// TODO: Coefficient parsing for variables...
 #[derive(Debug)]
 pub struct TAVariable {
     coef: Option<TANum>,

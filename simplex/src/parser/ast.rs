@@ -142,7 +142,8 @@ st {
 }
 ";
             let ast = construct_ast(input.as_bytes());
-            // println!("{:#?}", ast);
+
+            println!("{:?}", ast.as_ref().unwrap().nodes);
             assert!(ast.is_ok());
         }
     }

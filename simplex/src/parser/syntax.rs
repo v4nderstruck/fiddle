@@ -220,8 +220,6 @@ pub fn expression_point<R: BufRead>(
         | Some(Token::LParen('('))
         | Some(Token::LParen('[')) => {
             let expression_node = ast.insert_node(None, Some(parent), ASTNodeTypes::Expression);
-            // FIXME: Here originated error from test case, should revisit theoretic concept
-            // simply add coeeficient parser...
 
             term(iterator, ast, expression_node)?;
             expression_point(iterator, ast, expression_node)

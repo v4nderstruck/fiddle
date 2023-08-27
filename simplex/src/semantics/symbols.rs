@@ -12,13 +12,51 @@ pub enum Symbol {
     RHS(u32, F64),    // row, value
 }
 
+// TODO: Instead of hashmap, better vec<vec<>> per row
 /// Variables and their coeefficients
 #[derive(Debug)]
 pub struct SymbolTable {
     pub table: HashMap<String, Vec<Symbol>>,
+    pub n_constr: u32,
 }
 
 impl SymbolTable {
+    pub fn get_obj_symbols(&self) -> Vec<Symbol> {
+        let mut symbols = vec![];
+        for (_, v) in &self.table {
+            for symbol in v {
+                match symbol {
+                    Symbol::Obj(_) => {
+                        symbols.push(symbol.clone());
+                    }
+                    _ => {}
+                }
+            }
+        }
+        symbols
+    }
+    pub fn get_row_symbols(&self, row: u32) -> Vec<Symbol> {
+        let mut symbols = vec![];
+        for (_, v) in &self.table {
+            for symbol in v {
+                match symbol {
+                    Symbol::Constr(r, _) => {
+                        if *r == row {
+                            symbols.push(symbol.clone());
+                        }
+                    }
+                    Symbol::RHS(r, _) => {
+                        if *r == row {
+                            symbols.push(symbol.clone());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        symbols
+    }
+
     fn collect_objective_symbols(&mut self, ast: &AST, root: usize, prev_sign: i8) -> i8 {
         let node = &ast.nodes[root];
         let mut sign = prev_sign;
@@ -111,6 +149,10 @@ impl SymbolTable {
             }
         }
 
+        if self.n_constr < row + 1 {
+            self.n_constr = row + 1;
+        }
+
         let mut new_sign = sign;
         if let Some(children) = &node.children {
             for child in children {
@@ -125,6 +167,7 @@ impl From<AST> for SymbolTable {
     fn from(ast: AST) -> Self {
         let mut table = Self {
             table: HashMap::new(),
+            n_constr: 0,
         };
 
         if let Some(obj_root) = ast.find_root(ASTNodeTypes::Objective) {
@@ -226,6 +269,7 @@ st {
                     Symbol::RHS(2, F64(-1.1))
                 ]
             );
+            assert!(t.n_constr == 3)
         }
     }
 }
